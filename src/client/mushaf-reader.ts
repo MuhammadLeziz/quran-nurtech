@@ -166,6 +166,7 @@ export function createMushafReader(root: HTMLElement): MushafReader | null {
       const [data, meta] = await Promise.all([loadPage(edition, p), loadMeta()]);
       if (token !== slide.token) return;
       slide.el.innerHTML = renderSheetHtml(data, { edition, surahs: meta.suraPages, state: 'loading' });
+      syncBookmark();
       if (slide === slides.cur) applyPlaying();
       watchFont(slide, p, token);
     } catch {
@@ -234,8 +235,11 @@ export function createMushafReader(root: HTMLElement): MushafReader | null {
   }
 
   function syncBookmark() {
-    const on = pos <= MUSHAF_TOTAL_PAGES && isPageBookmarked(page());
+    const current = pos <= MUSHAF_TOTAL_PAGES && isPageBookmarked(page());
     document.querySelectorAll<HTMLElement>('[data-mushaf-bookmark]').forEach((b) => {
+      // кнопка в колонтитуле листа — про свою страницу, в тулбаре и панели — про текущую
+      const own = Number(b.closest('.mushaf-sheet')?.getAttribute('data-page'));
+      const on = own ? isPageBookmarked(own) : current;
       b.setAttribute('aria-pressed', String(on));
       b.classList.toggle('on', on);
       const label = b.querySelector('[data-mushaf-bookmark-label]');

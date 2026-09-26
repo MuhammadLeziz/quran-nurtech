@@ -39,6 +39,8 @@ export class AudioPlayerController {
   preloader: HTMLAudioElement | null = null;
   preloadedUrl = '';
   mushafAyahNotice = false;
+  /** Плейлист собран из целых сур (мусхаф): чтение идёт дальше страницы, а не только по её аятам. */
+  surahMode = false;
 
   setPlayerOpen(open: boolean) {
     this.el?.classList.toggle('show', open);
@@ -131,11 +133,15 @@ export class AudioPlayerController {
     return Array.from({ length: c }, (_, i) => ({ s, a: i + 1 }));
   }
 
-  async playKey(s: number, a: number) {
+  async playKey(s: number, a: number): Promise<void> {
     const cur = this.idx >= 0 ? this.playlist[this.idx] : null;
     if (cur && cur.s === s && cur.a === a) return this.toggle();
     this.memCount = 0;
-    if (isMushaf() && this.keyIdx(s, a) < 0) this.playlist = await this.surahTracks(s);
+    // в мусхафе на странице только часть суры — читаем суру целиком с этого аята и дальше
+    if (isMushaf() && (!this.surahMode || this.keyIdx(s, a) < 0)) {
+      this.playlist = await this.surahTracks(s);
+      this.surahMode = true;
+    }
     let i = this.keyIdx(s, a);
     if (i < 0) {
       this.playlist = [{ s, a }];
@@ -207,8 +213,9 @@ export class AudioPlayerController {
     this.preloader.load();
   }
 
-  toggle() {
+  toggle(): void | Promise<void> {
     if (!this.audio) return;
+    if (this.idx < 0 && isMushaf() && this.playlist[0]) return this.playKey(this.playlist[0].s, this.playlist[0].a);
     if (this.idx < 0) return this.playIdx(0);
     if (this.audio.paused) this.audio.play().catch(() => {});
     else this.audio.pause();
