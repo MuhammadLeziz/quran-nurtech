@@ -40,7 +40,9 @@
     border-radius: 0;
   }
 
-  .mushaf-tb-zoom {
+  /* масштаб — в панели «Вид», закладка — в колонтитуле страницы */
+  .mushaf-tb-zoom,
+  .mushaf-tb-bookmark {
     display: none !important;
   }
 

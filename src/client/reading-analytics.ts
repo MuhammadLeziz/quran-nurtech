@@ -271,27 +271,56 @@ function startDwellTimer() {
   }, 1000);
 }
 
+// Мусхаф: аяты страницы видны все сразу, поэтому «увидел 3 секунды» ≠ «прочитал». Время чтения считаем,
+// пока открыта страница, а аяты страницы отмечаем прочитанными, только если на ней пробыли столько,
+// сколько нужно хотя бы на беглое чтение (пролистывание мусхафа не засчитывает хатм).
+const MUSHAF_PAGE_READ_SECONDS = 20;
+
+function startMushafTimer() {
+  let dwell = 0;
+  window.addEventListener('mushaf:page', () => {
+    dwell = 0;
+  });
+  window.setInterval(() => {
+    if (!canTickReading()) return;
+    const words = $$<HTMLElement>('.mushaf-slide.is-current .mushaf-sheet[data-state="ready"] .qcf-word[data-ayah-key]');
+    if (!words.length) return;
+    addReadingSecond();
+    if (++dwell !== MUSHAF_PAGE_READ_SECONDS) return;
+    new Set(words.map((w) => w.dataset.ayahKey || '')).forEach((key) => {
+      if (!isAyahKey(key) || dwellState.seen.has(key)) return;
+      dwellState.seen.add(key);
+      markAyahRead(key);
+    });
+    maybePeriodicReadingSync();
+  }, 1000);
+}
+
 export function initReadingAnalytics() {
-  const els = $$<HTMLElement>('[data-ayah-key]');
-  if (!els.length || !('IntersectionObserver' in window)) return;
+  const mushaf = document.body.getAttribute('data-page-mode') === 'mushaf';
+  const els = mushaf ? [] : $$<HTMLElement>('[data-ayah-key]');
+  if (!mushaf && (!els.length || !('IntersectionObserver' in window))) return;
   getUid();
   updateStreak();
-  dwellState.io?.disconnect();
-  dwellState.visible.clear();
-  dwellState.dwell = {};
-  dwellState.io = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        const key = (entry.target as HTMLElement).dataset.ayahKey || '';
-        if (!isAyahKey(key)) return;
-        if (entry.isIntersecting) dwellState.visible.add(key);
-        else dwellState.visible.delete(key);
-      });
-    },
-    { root: null, rootMargin: '-70px 0px -45% 0px', threshold: 0 }
-  );
-  els.forEach((el) => dwellState.io?.observe(el));
-  startDwellTimer();
+  if (mushaf) startMushafTimer();
+  else {
+    dwellState.io?.disconnect();
+    dwellState.visible.clear();
+    dwellState.dwell = {};
+    dwellState.io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const key = (entry.target as HTMLElement).dataset.ayahKey || '';
+          if (!isAyahKey(key)) return;
+          if (entry.isIntersecting) dwellState.visible.add(key);
+          else dwellState.visible.delete(key);
+        });
+      },
+      { root: null, rootMargin: '-70px 0px -45% 0px', threshold: 0 }
+    );
+    els.forEach((el) => dwellState.io?.observe(el));
+    startDwellTimer();
+  }
   window.addEventListener('blur', () => {
     dwellState.focused = false;
     sendReadingSync(true);

@@ -12,6 +12,7 @@ export {
   BASMALA,
   MUSHAF_TOTAL_PAGES,
   pageFontCss,
+  pageHasBasmala,
   renderSheetHtml,
   type MushafEdition,
   type MushafPage,

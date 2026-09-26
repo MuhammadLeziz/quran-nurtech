@@ -6,6 +6,7 @@ import { updateMobileScrollLock } from './ui-menus';
 
 interface ReaderActionsPlayer {
   playKey(s: number, a: number): void;
+  toggle(): void;
 }
 
 interface ReaderActionsDeps {
@@ -520,6 +521,13 @@ export function initMushafAyahSheet({ player }: ReaderActionsDeps) {
       window.setTimeout(() => (followNav = false), 4000);
       window.dispatchEvent(new CustomEvent('mushaf:goto-ayah', { detail: { s, a, open: true } }));
     }
+  });
+
+  // кнопка «Слушать» в тулбаре мусхафа: detail — аят, с которого начать, null — пауза/продолжить
+  window.addEventListener('mushaf:play', (e) => {
+    const from = (e as CustomEvent<{ s: number; a: number } | null>).detail;
+    if (from) player.playKey(from.s, from.a);
+    else player.toggle();
   });
 
   window.addEventListener('mushaf:open-ayah', (e) => {

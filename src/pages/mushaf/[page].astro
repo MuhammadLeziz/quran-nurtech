@@ -6,6 +6,7 @@ import {
   getMushafPage,
   MUSHAF_TOTAL_PAGES,
   pageFontCss,
+  pageHasBasmala,
   renderSheetHtml,
 } from '../../lib/mushaf';
 import { TAJWEED_LEGEND } from '../../lib/mushaf-tajweed';
@@ -25,7 +26,10 @@ const nextPage = pageNum < MUSHAF_TOTAL_PAGES ? pageNum + 1 : null;
 const title = `Мусхаф, страница ${pageNum} — Коран онлайн`;
 const description = `Оригинальная страничная раскладка мусхафа с цветным таджвидом, страница ${pageNum} из ${MUSHAF_TOTAL_PAGES}: QCF-глифы, 15 строк и пословная разметка.`;
 const sheetHtml = renderSheetHtml(page, { edition: 'v4', surahs: meta.suraPages });
-const fontCss = pageFontCss('v4', pageNum);
+// басмала над сурой рисуется шрифтом страницы 1 — объявляем и его, чтобы он качался сразу
+const fontCss = [pageFontCss('v4', pageNum), pageNum !== 1 && pageHasBasmala(page) ? pageFontCss('v4', 1) : '']
+  .filter(Boolean)
+  .join('\n');
 
 // предвыбор в «Сура…» / «Джуз…»: сура, начинающаяся на странице, иначе первая сура страницы
 const currentSurah = page.starts?.[0]?.s ?? Number(page.lines[0]?.w[0]?.k.split(':')[0]) ?? 1;
@@ -82,6 +86,9 @@ const icon = {
       </div>
 
       <div class="mushaf-tb-group mushaf-tb-tools">
+        <button type="button" class="icon-btn mushaf-tb-play" data-mushaf-play aria-pressed="false" aria-label="Слушать страницу" title="Слушать с этой страницы">
+          <span class="i-play" set:html={icons.play}></span><span class="i-pause" set:html={icons.pause}></span>
+        </button>
         <button type="button" class="icon-btn mushaf-tb-bookmark" data-mushaf-bookmark aria-pressed="false" aria-label="Закладка на странице" title="Закладка на странице (B)" set:html={icons.bookmark}></button>
         <button type="button" class="icon-btn" data-mushaf-open="nav" aria-haspopup="dialog" aria-label="Перейти и закладки" title="Перейти и закладки" set:html={icon.list}></button>
         <button type="button" class="icon-btn" data-mushaf-open="view" aria-haspopup="dialog" aria-label="Вид мусхафа" title="Вид: издание, таджвид, размер, офлайн" set:html={icon.text}></button>

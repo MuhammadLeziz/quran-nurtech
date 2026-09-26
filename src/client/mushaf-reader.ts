@@ -1,12 +1,6 @@
 // Мусхаф: листание как в печатном мусхафе (справа налево), раскладка под экран, масштаб с переносом по словам,
 // полноэкранный режим. Три слота-страницы: текущая, следующая слева и предыдущая справа — палец тянет всю ленту.
-import {
-  clampPage,
-  MUSHAF_TOTAL_PAGES,
-  renderSheetHtml,
-  toArabicDigits,
-  type MushafEdition,
-} from '../lib/mushaf-layout';
+import { BASMALA_PAGE, clampPage, MUSHAF_TOTAL_PAGES, renderSheetHtml, type MushafEdition } from '../lib/mushaf-layout';
 import { fontReady, loadAyahPages, loadFont, loadMeta, loadPage, prefetchPage } from './mushaf-data';
 import {
   getEdition,
@@ -100,9 +94,9 @@ export function createMushafReader(root: HTMLElement): MushafReader | null {
     const lines = Array.from({ length: 15 }, (_, i) => `<div class="qcf-line" data-line="${i + 1}"></div>`).join('');
     return (
       `<section class="mushaf-sheet" data-state="loading" data-page="${p}" aria-label="Страница ${p} мусхафа">` +
-      `<header class="mushaf-meta"><span class="mushaf-meta-surah"></span><span class="mushaf-meta-juz"></span></header>` +
+      `<header class="mushaf-meta"><span class="mushaf-meta-juz"></span><span class="mushaf-meta-surah"></span></header>` +
       `<div class="qcf-page" dir="rtl" data-mushaf-page="${p}" data-edition="${edition}">${lines}</div>` +
-      `<footer class="mushaf-folio">${toArabicDigits(p)}</footer></section>`
+      `<footer class="mushaf-folio">${p}</footer></section>`
     );
   }
 
@@ -129,7 +123,9 @@ export function createMushafReader(root: HTMLElement): MushafReader | null {
   function watchFont(slide: Slide, p: number, token: number, retry = false) {
     const sheet = slide.el.querySelector<HTMLElement>('.mushaf-sheet');
     if (!sheet) return;
-    if (!retry && fontReady(edition, p)) {
+    // басмала над сурой — шрифтом страницы 1: ждём и его, чтобы не мелькнули «случайные буквы»
+    const pages = sheet.querySelector('.qcf-basmala') && p !== BASMALA_PAGE ? [p, BASMALA_PAGE] : [p];
+    if (!retry && pages.every((n) => fontReady(edition, n))) {
       markReady(sheet);
       return;
     }
@@ -139,7 +135,7 @@ export function createMushafReader(root: HTMLElement): MushafReader | null {
     const slow = window.setTimeout(() => {
       if (token === slide.token) sheet.classList.add('is-slow');
     }, 5000);
-    loadFont(edition, p, retry).then(
+    Promise.all(pages.map((n) => loadFont(edition, n, retry))).then(
       () => {
         if (token !== slide.token) return;
         markReady(sheet);
@@ -170,6 +166,7 @@ export function createMushafReader(root: HTMLElement): MushafReader | null {
       const [data, meta] = await Promise.all([loadPage(edition, p), loadMeta()]);
       if (token !== slide.token) return;
       slide.el.innerHTML = renderSheetHtml(data, { edition, surahs: meta.suraPages, state: 'loading' });
+      if (slide === slides.cur) applyPlaying();
       watchFont(slide, p, token);
     } catch {
       if (token !== slide.token) return;
@@ -256,6 +253,7 @@ export function createMushafReader(root: HTMLElement): MushafReader | null {
     if (pos <= MUSHAF_TOTAL_PAGES) rememberPage(p);
     syncChrome();
     fillNeighbors();
+    applyPlaying();
     window.dispatchEvent(new CustomEvent('mushaf:page', { detail: { page: p, khatm: pos === KHATM } }));
     // вперёд по ходу чтения — ещё две страницы заранее (idle с таймаутом: при анимациях idle может не наступить)
     const prefetch = () => {
@@ -755,6 +753,48 @@ export function createMushafReader(root: HTMLElement): MushafReader | null {
       };
       wait();
     } catch {}
+  });
+
+  // ---------------------------------------------------------------- аудио: звучащий аят подсвечен, мусхаф листается следом
+  let playing: { s: number; a: number } | null = null;
+
+  function applyPlaying() {
+    root.querySelectorAll('.qcf-word.qcf-ayah-playing').forEach((w) => w.classList.remove('qcf-ayah-playing'));
+    if (!playing) return;
+    slides.cur.el
+      .querySelectorAll(`.qcf-word[data-ayah-key="${playing.s}:${playing.a}"]`)
+      .forEach((w) => w.classList.add('qcf-ayah-playing'));
+  }
+
+  window.addEventListener('mushaf:audio-ayah', async (e) => {
+    playing = (e as CustomEvent<{ s: number; a: number } | null>).detail;
+    applyPlaying();
+    if (!playing) return;
+    try {
+      const p = (await loadAyahPages())[edition][playing.s - 1]?.[playing.a - 1];
+      if (p && (p !== page() || pos === KHATM)) goTo(p);
+    } catch {}
+  });
+
+  // кнопка «Слушать» в тулбаре: пауза/продолжить или чтение с первого аята страницы
+  const audioEl = document.querySelector<HTMLAudioElement>('[data-player-audio]');
+  const syncPlayButton = () => {
+    const on = !!audioEl && !audioEl.paused;
+    document.querySelectorAll<HTMLElement>('[data-mushaf-play]').forEach((b) => {
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', String(on));
+      b.setAttribute('aria-label', on ? 'Пауза' : 'Слушать страницу');
+      b.title = on ? 'Пауза' : 'Слушать с этой страницы';
+    });
+  };
+  audioEl?.addEventListener('play', syncPlayButton);
+  audioEl?.addEventListener('pause', syncPlayButton);
+  document.addEventListener('click', (e) => {
+    if (!(e.target as Element).closest('[data-mushaf-play]')) return;
+    const first = slides.cur.el.querySelector<HTMLElement>('.qcf-word[data-ayah-key]')?.dataset.ayahKey;
+    const onPage = playing && slides.cur.el.querySelector(`.qcf-word[data-ayah-key="${playing.s}:${playing.a}"]`);
+    const [s, a] = (first || '1:1').split(':').map(Number);
+    window.dispatchEvent(new CustomEvent('mushaf:play', { detail: onPage ? null : { s, a } }));
   });
 
   function setEdition(e: MushafEdition) {

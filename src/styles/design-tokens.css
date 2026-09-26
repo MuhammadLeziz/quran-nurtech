@@ -136,6 +136,8 @@
   --mushaf-ink: #1d2229;
   --mushaf-paper-line: #ddd8ca;
   --mushaf-ornament: #6a6f66;
+  --mushaf-frame: #2f7a55;
+  --mushaf-frame-gold: #c7a24a;
   --mushaf-stage: color-mix(in srgb, var(--sys-bg) 84%, #aeb6c0);
 
   /* Legacy aliases kept deliberately while the old base CSS is retired. */
@@ -209,6 +211,8 @@
   --mushaf-ink: #f3f5f7;
   --mushaf-paper-line: #353b44;
   --mushaf-ornament: #b7c0c9;
+  --mushaf-frame: #3f8a66;
+  --mushaf-frame-gold: #b8964a;
   --mushaf-stage: #0f1115;
 }
 
@@ -234,6 +238,8 @@
   --mushaf-ink: #241f18;
   --mushaf-paper-line: #ded0b7;
   --mushaf-ornament: #746244;
+  --mushaf-frame: #5f7a3f;
+  --mushaf-frame-gold: #b08a3e;
   --mushaf-stage: #f1e3ce;
 }
 

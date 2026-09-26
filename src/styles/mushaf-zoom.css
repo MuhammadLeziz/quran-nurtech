@@ -54,3 +54,8 @@
 .mushaf-reader.is-flow .mushaf-sheet[data-state='ready'] .qcf-line:not(.is-empty, .qcf-line-deco) {
   display: contents;
 }
+
+/* крупный кегль: надстрочные знаки первой строки не должны заходить на колонтитул */
+.mushaf-reader.is-flow .qcf-page {
+  padding-top: 0.45em;
+}

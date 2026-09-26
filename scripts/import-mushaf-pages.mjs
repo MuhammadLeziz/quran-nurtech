@@ -148,16 +148,19 @@ if (process.argv[2] === 'v2') {
   const metaPath = join(OUT, 'meta.json');
   const old = JSON.parse(readFileSync(metaPath, 'utf8'));
   const suraStart = {};
+  const ayahCount = {};
   for (const v of ordered) {
     const [s, a] = v.verse_key.split(':').map(Number);
     if (a === 1) suraStart[s] = v.words[0].page_number;
+    ayahCount[s] = a;
   }
   const meta = {
     pages: PAGES,
     suraStart,
     juzStart,
     pageJuz,
-    suraPages: old.suraPages.map((s) => ({ ...s, p: suraStart[s.n] })),
+    // c — число аятов (медальон «آياتها» в заголовке суры)
+    suraPages: old.suraPages.map((s) => ({ n: s.n, nr: s.nr, na: s.na, p: suraStart[s.n], c: ayahCount[s.n] })),
   };
   writeFileSync(metaPath, JSON.stringify(meta));
 }

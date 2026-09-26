@@ -1,6 +1,6 @@
 // Мусхаф без интернета: страницы, шрифты и переводы выбранного издания — в Cache API.
 // public/sw.js отдаёт их из этого кэша (и ищет там же страницу-оболочку /mushaf/N для офлайн-перехода).
-import { fontUrl, MUSHAF_TOTAL_PAGES, type MushafEdition } from '../lib/mushaf-layout';
+import { fontUrl, MUSHAF_TOTAL_PAGES, SURAH_NAME_FONT_URL, type MushafEdition } from '../lib/mushaf-layout';
 import { AYAH_PAGES_URL, META_URL, pageUrl } from './mushaf-data';
 import { DV } from './quran-data';
 import { LS } from './shared';
@@ -39,6 +39,7 @@ function shellUrls(): string[] {
   return [
     '/mushaf/1',
     '/mushaf',
+    SURAH_NAME_FONT_URL,
     META_URL,
     AYAH_PAGES_URL,
     `/data/index.json?v=${DV}`,

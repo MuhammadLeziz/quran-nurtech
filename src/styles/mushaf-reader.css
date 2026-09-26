@@ -222,3 +222,17 @@ body[data-page-mode='mushaf'].player-open .mushaf-reader {
     animation: none;
   }
 }
+
+/* «Слушать»: ▶ / ❚❚ по состоянию плеера */
+.mushaf-tb-play span {
+  display: inline-flex;
+}
+
+.mushaf-tb-play .i-pause,
+.mushaf-tb-play.on .i-play {
+  display: none;
+}
+
+.mushaf-tb-play.on .i-pause {
+  display: inline-flex;
+}
