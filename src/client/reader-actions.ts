@@ -318,21 +318,34 @@ export function initAyahContextMenu({ player }: ReaderActionsDeps) {
   });
 }
 
-type AyahTr = { s: number; a: number; r: string; aa: string; ar: string; tl: string };
-let ayahTrCache: Record<string, AyahTr> | null = null;
+type AyahText = { a: number; r: string; aa: string; ar: string; tl: string };
+const ayahTextCache = new Map<number, Promise<AyahText[]>>();
 
-async function loadAyahTranslations(): Promise<Record<string, AyahTr>> {
-  if (ayahTrCache) return ayahTrCache;
-  const rows: AyahTr[] = await fetch(`/data/search-index.json?v=4`).then((r) => r.json());
-  const map: Record<string, AyahTr> = {};
-  for (const row of rows) map[`${row.s}:${row.a}`] = row;
-  ayahTrCache = map;
-  return map;
+// Текст аятов одной суры (public/data/ayah-text/<s>.json) — вместо 6-МБ поискового индекса.
+function loadAyahText(s: number): Promise<AyahText[]> {
+  let hit = ayahTextCache.get(s);
+  if (!hit) {
+    hit = fetch(`/data/ayah-text/${s}.json`).then((r) => {
+      if (!r.ok) throw new Error('ayah-text ' + r.status);
+      return r.json();
+    });
+    hit.catch(() => ayahTextCache.delete(s));
+    ayahTextCache.set(s, hit);
+  }
+  return hit;
 }
 
+const MUSHAF_TR_KEY = 'q_mushaf_tr';
+const SHEET_IC = {
+  prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
+  next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>',
+  close:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+};
+
 export function initMushafAyahSheet({ player }: ReaderActionsDeps) {
-  const words = $$('.qcf-word[data-ayah-key]');
-  if (!words.length) return;
+  const reader = document.querySelector('[data-mushaf-reader]');
+  if (!reader) return;
   const sheet = document.createElement('div');
   sheet.className = 'mas';
   const backdrop = document.createElement('div');
@@ -342,28 +355,41 @@ export function initMushafAyahSheet({ player }: ReaderActionsDeps) {
   card.className = 'mas-card';
   card.setAttribute('role', 'dialog');
   card.setAttribute('aria-modal', 'true');
+  card.setAttribute('aria-labelledby', 'mas-ref');
+  // В RTL-мусхафе следующий аят — слева: кнопки «‹ ›» стоят в том же порядке, что и листание.
   card.innerHTML =
-    '<div class="mas-head"><b data-mas-ref></b>' +
-    '<button type="button" class="mas-x" data-mas-close aria-label="Закрыть">' +
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>' +
-    '<div class="mas-tr" data-mas-tr></div>' +
+    '<div class="mas-head">' +
+    `<button type="button" class="mas-nav" data-mas-step="1" aria-label="Следующий аят" title="Следующий аят">${SHEET_IC.next}</button>` +
+    '<b id="mas-ref" data-mas-ref></b>' +
+    `<button type="button" class="mas-nav" data-mas-step="-1" aria-label="Предыдущий аят" title="Предыдущий аят">${SHEET_IC.prev}</button>` +
+    `<button type="button" class="mas-x" data-mas-close aria-label="Закрыть">${SHEET_IC.close}</button></div>` +
+    '<div class="seg seg-grid2 mas-tr-switch" role="radiogroup" aria-label="Перевод">' +
+    '<button type="button" role="radio" data-mas-tr="r">Кулиев</button>' +
+    '<button type="button" role="radio" data-mas-tr="aa">Абу Адель</button></div>' +
+    '<div class="mas-tr" data-mas-tr-text aria-live="polite"></div>' +
     '<div class="mas-tafsir" data-mas-tafsir hidden></div>' +
     '<div class="mas-acts" data-mas-acts></div>';
   sheet.append(backdrop, card);
   document.body.appendChild(sheet);
 
   const refEl = card.querySelector('[data-mas-ref]') as HTMLElement;
-  const trEl = card.querySelector('[data-mas-tr]') as HTMLElement;
+  const trEl = card.querySelector('[data-mas-tr-text]') as HTMLElement;
   const tafEl = card.querySelector('[data-mas-tafsir]') as HTMLElement;
   const actsEl = card.querySelector('[data-mas-acts]') as HTMLElement;
+  let cur: { s: number; a: number; row?: AyahText; name: string } | null = null;
+  let followNav = false;
+  let tr: 'r' | 'aa' = LS.get<string>(MUSHAF_TR_KEY, 'r') === 'aa' ? 'aa' : 'r';
 
   const clearHi = () =>
     $$('.qcf-word.qcf-ayah-active').forEach((w) => w.classList.remove('qcf-ayah-active'));
+  const isOpen = () => sheet.classList.contains('open');
   const close = () => {
+    if (!isOpen()) return;
     sheet.classList.remove('open');
     document.body.classList.remove('mushaf-sheet-open');
     updateMobileScrollLock();
     clearHi();
+    cur = null;
   };
   sheet.addEventListener('click', (e) => {
     if ((e.target as Element).closest('[data-mas-close]')) close();
@@ -372,59 +398,93 @@ export function initMushafAyahSheet({ player }: ReaderActionsDeps) {
     if (e.key === 'Escape') close();
   });
 
-  const actBtn = (label: string, icon: string, run: () => void) => {
+  const actBtn = (label: string, icon: string, run: () => void, labelAttr = '') => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'mas-act';
-    b.innerHTML = `<span class="mas-ic">${icon}</span>${label}`;
+    b.innerHTML = `<span class="mas-ic">${icon}</span><span ${labelAttr}>${label}</span>`;
     b.addEventListener('click', run);
     return b;
   };
 
+  const trText = (row: AyahText) => (tr === 'aa' ? row.aa : row.r) || row.r;
+  const renderTr = () => {
+    $$('[data-mas-tr]', card).forEach((b) => {
+      const on = b.getAttribute('data-mas-tr') === tr;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-checked', String(on));
+    });
+    if (cur?.row) trEl.textContent = trText(cur.row) || 'Перевод не найден.';
+  };
+  $$('[data-mas-tr]', card).forEach((b) =>
+    b.addEventListener('click', () => {
+      tr = b.getAttribute('data-mas-tr') === 'aa' ? 'aa' : 'r';
+      LS.set(MUSHAF_TR_KEY, tr);
+      renderTr();
+    })
+  );
+
   const open = async (s: number, a: number) => {
     clearHi();
-    $$(`.qcf-word[data-ayah-key="${s}:${a}"]`).forEach((w) => w.classList.add('qcf-ayah-active'));
+    $$(`.mushaf-slide.is-current .qcf-word[data-ayah-key="${s}:${a}"]`).forEach((w) =>
+      w.classList.add('qcf-ayah-active')
+    );
     await loadIndex();
-    const name = surahIndex.find((x) => x.n === s)?.nr || 'Сура ' + s;
-    refEl.textContent = `${name} · аят ${s}:${a}`;
-    trEl.textContent = 'Загружаю перевод...';
+    const meta = surahIndex.find((x) => x.n === s);
+    const name = meta?.nr || 'Сура ' + s;
+    cur = { s, a, name };
+    refEl.textContent = `${name} · ${s}:${a}`;
+    trEl.textContent = 'Загружаю перевод…';
     tafEl.hidden = true;
     tafEl.textContent = '';
+    renderTr();
     sheet.classList.add('open');
     document.body.classList.add('mushaf-sheet-open');
     updateMobileScrollLock();
+    (card.querySelector('[data-mas-step="-1"]') as HTMLButtonElement).disabled = s === 1 && a === 1;
+    (card.querySelector('[data-mas-step="1"]') as HTMLButtonElement).disabled = s === 114 && a === (meta?.c || 6);
 
-    actsEl.innerHTML = '';
-    let row: AyahTr | undefined;
-    const buildActs = () => {
-      actsEl.append(
-        actBtn('Слушать', CTX_IC.play, () => player.playKey(s, a)),
-        actBtn('Тафсир', CTX_IC.book, () => showTafsir(s, a)),
-        actBtn(isBookmarked(s, a) ? 'В закладках' : 'Закладка', CTX_IC.bookmark, () => {
+    actsEl.replaceChildren(
+      actBtn('Слушать', CTX_IC.play, () => player.playKey(s, a)),
+      actBtn('Тафсир', CTX_IC.book, () => showTafsir(s, a)),
+      actBtn(
+        isBookmarked(s, a) ? 'В закладках' : 'Закладка',
+        CTX_IC.bookmark,
+        () => {
           const on = toggleBookmark(s, a);
           toast(on ? 'В закладках' : 'Убрано');
-        }),
-        actBtn('Копировать', CTX_IC.copy, () => {
-          if (!row) return;
-          copy(`${name} · аят ${s}:${a}\n\n${row.ar}\n\n${row.r}\n\n${location.origin}/${s}:${a}`);
-        }),
-        actBtn('Картинка', CTX_IC.image, () => {
-          if (!row) return;
-          openAyahEditor({ s, a, ar: row.ar, ru: row.r, aa: row.aa, tl: row.tl, surahName: name });
-        }),
-        actBtn('Открыть аят', CTX_IC.link, () => (location.href = `/${s}:${a}`))
-      );
-    };
-    buildActs();
+          const label = actsEl.querySelector('[data-mas-bm]');
+          if (label) label.textContent = on ? 'В закладках' : 'Закладка';
+        },
+        'data-mas-bm'
+      ),
+      actBtn('Копировать', CTX_IC.copy, () => {
+        if (cur?.row) copy(`${name} · аят ${s}:${a}\n\n${cur.row.ar}\n\n${trText(cur.row)}\n\n${location.origin}/${s}:${a}`);
+      }),
+      actBtn('Ссылка', CTX_IC.link, () => copy(`${location.origin}/${s}:${a}`)),
+      actBtn('Поделиться', CTX_IC.share, () => {
+        if (cur?.row) shareAyah(s, a, cur.row.ar, trText(cur.row));
+      }),
+      actBtn('Картинка', CTX_IC.image, () => {
+        if (cur?.row) openAyahEditor({ s, a, ar: cur.row.ar, ru: cur.row.r, aa: cur.row.aa, tl: cur.row.tl, surahName: name });
+      }),
+      actBtn('Открыть', CTX_IC.flag, () => (location.href = `/${s}:${a}`))
+    );
 
-    const map = await loadAyahTranslations();
-    row = map[`${s}:${a}`];
-    trEl.textContent = row?.r || 'Перевод не найден.';
+    try {
+      const rows = await loadAyahText(s);
+      if (!cur || cur.s !== s || cur.a !== a) return;
+      cur.row = rows.find((x) => x.a === a);
+      if (cur.row) renderTr();
+      else trEl.textContent = 'Перевод не найден.';
+    } catch {
+      if (cur && cur.s === s && cur.a === a) trEl.textContent = 'Не удалось загрузить перевод — нет соединения?';
+    }
   };
 
   const showTafsir = async (s: number, a: number) => {
     tafEl.hidden = false;
-    tafEl.textContent = 'Загружаю тафсир...';
+    tafEl.textContent = 'Загружаю тафсир…';
     try {
       const [saadi, ik] = await Promise.all([loadSaadi(s), loadIbnKathir(s)]);
       const sBlk = saadi.find((b: any) => b.a === a);
@@ -438,10 +498,46 @@ export function initMushafAyahSheet({ player }: ReaderActionsDeps) {
     }
   };
 
-  words.forEach((w) => {
-    w.addEventListener('click', () => {
-      const [s, a] = w.getAttribute('data-ayah-key')!.split(':').map(Number);
-      open(s, a);
-    });
+  // соседний аят: на этой же странице — сразу, на соседней — мусхаф перелистнёт и откроет шторку там
+  card.addEventListener('click', async (e) => {
+    const btn = (e.target as Element).closest<HTMLElement>('[data-mas-step]');
+    if (!btn || !cur) return;
+    await loadIndex();
+    const count = (n: number) => surahIndex.find((x) => x.n === n)?.c || 0;
+    let { s, a } = cur;
+    a += Number(btn.getAttribute('data-mas-step'));
+    if (a < 1) {
+      s -= 1;
+      a = count(s);
+    } else if (a > count(s)) {
+      s += 1;
+      a = 1;
+    }
+    if (s < 1 || s > 114) return;
+    if (document.querySelector(`.mushaf-slide.is-current .qcf-word[data-ayah-key="${s}:${a}"]`)) open(s, a);
+    else {
+      followNav = true;
+      window.setTimeout(() => (followNav = false), 4000);
+      window.dispatchEvent(new CustomEvent('mushaf:goto-ayah', { detail: { s, a, open: true } }));
+    }
+  });
+
+  window.addEventListener('mushaf:open-ayah', (e) => {
+    followNav = false;
+    const { s, a } = (e as CustomEvent<{ s: number; a: number }>).detail;
+    open(s, a);
+  });
+  // перелистнули страницу — шторка прежнего аята больше не к месту
+  window.addEventListener('mushaf:page', () => {
+    if (!followNav) close();
+  });
+
+  // тап по слову (и на страницах, дорисованных при листании)
+  reader.addEventListener('click', (e) => {
+    const w = (e.target as Element).closest('.qcf-word[data-ayah-key]');
+    if (!w || !w.closest('.mushaf-slide.is-current')) return;
+    const [s, a] = w.getAttribute('data-ayah-key')!.split(':').map(Number);
+    if (cur && cur.s === s && cur.a === a && isOpen()) close();
+    else open(s, a);
   });
 }

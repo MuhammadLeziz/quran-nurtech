@@ -4,24 +4,59 @@ import { icons } from '../../lib/icons';
 
 const title = 'Мусхаф — Коран онлайн';
 const description =
-  'Оригинальная страничная раскладка Корана: 604 страницы мусхафа, QCF-глифы и пословная разметка.';
+  'Коран постранично, как в печатном мусхафе: 604 страницы мединского издания 1441 г. с цветным таджвидом или классического 1405 г.';
 ---
 
 <Base {title} {description} wide>
   <section class="mushaf-start container">
-    <p class="eyebrow">QCF4 · 604 страницы</p>
+    <p class="eyebrow">604 страницы · 15 строк</p>
     <h1>Мусхаф</h1>
     <p>
-      Страничный режим для чтения арабского текста как в печатном мусхафе: строки, глифы и
-      разбиение по страницам берутся из QCF4.
+      Страницы мединского мусхафа — как в печатном издании: листаются справа налево, аят открывается
+      касанием с переводом и тафсиром, мусхаф можно скачать для чтения без интернета.
     </p>
     <div class="home-actions mushaf-start-actions">
-      <a class="btn primary" href="/mushaf/1">
-        <span class="ui-inline-icon" set:html={icons.book} /> Открыть с начала
+      <a class="btn primary hide" href="/mushaf/1" data-mushaf-continue>
+        <span class="ui-inline-icon" set:html={icons.continue} /> <span>Продолжить</span>
       </a>
-      <a class="btn" href="/mushaf/604">
-        <span class="ui-inline-icon" set:html={icons.arrowLeft} /> Последняя страница
+      <a class="btn" href="/mushaf/1">
+        <span class="ui-inline-icon" set:html={icons.book} /> С первой страницы
       </a>
     </div>
+    <div class="mushaf-start-bm" data-mushaf-start-bm hidden>
+      <h2>Закладки страниц</h2>
+      <ul data-mushaf-start-bm-list></ul>
+    </div>
   </section>
+
+  <script>
+    import { getLastPage, getPageBookmarks } from '../../client/mushaf-store';
+
+    const last = getLastPage();
+    const cont = document.querySelector<HTMLAnchorElement>('[data-mushaf-continue]');
+    if (cont && last) {
+      cont.href = `/mushaf/${last.p}`;
+      cont.querySelector('span:last-child')!.textContent = `Продолжить со страницы ${last.p}`;
+      cont.classList.remove('hide');
+    }
+    const marks = getPageBookmarks();
+    const box = document.querySelector<HTMLElement>('[data-mushaf-start-bm]');
+    const list = document.querySelector('[data-mushaf-start-bm-list]');
+    if (box && list && marks.length) {
+      const fmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' });
+      list.replaceChildren(
+        ...marks.map((b) => {
+          const li = document.createElement('li');
+          const a = document.createElement('a');
+          a.href = `/mushaf/${b.p}`;
+          a.textContent = `Страница ${b.p}`;
+          const date = document.createElement('span');
+          date.textContent = fmt.format(b.t);
+          li.append(a, date);
+          return li;
+        })
+      );
+      box.hidden = false;
+    }
+  </script>
 </Base>

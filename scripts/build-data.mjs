@@ -74,6 +74,14 @@ for (const s of surahs) {
   }
 }
 writeFileSync(join(OUT, 'search-index.json'), JSON.stringify(searchIndex));
+// Текст аятов по сурам — для шторки аята в мусхафе (не тянуть весь 6-МБ поисковый индекс ради одного аята).
+const ayahTextOut = join(OUT, 'ayah-text');
+rmSync(ayahTextOut, { recursive: true, force: true });
+mkdirSync(ayahTextOut, { recursive: true });
+for (const s of surahs) {
+  const rows = searchIndex.filter((x) => x.s === s.n).map(({ a, r, aa, tl, ar }) => ({ a, r, aa, tl, ar }));
+  writeFileSync(join(ayahTextOut, `${s.n}.json`), JSON.stringify(rows));
+}
 juzIndex.sort((x, y) => x.j - y.j);
 writeFileSync(join(OUT, 'juz.json'), JSON.stringify(juzIndex));
 
@@ -209,6 +217,32 @@ if (mushafPages !== 605) {
   throw new Error(`[build-data] QCF V2/V4 неполный набор страниц: ${mushafPages}`);
 }
 
+// ---- 7. Мединский мусхаф 1405 г. (QCF V1) — второй стиль вёрстки ----
+// data/mushaf-pages-v1 генерится scripts/import-mushaf-pages.mjs v1, формат как у mushaf-pages.
+const mushafV1Pages = copyCleanDir(join(DATA, 'mushaf-pages-v1'), join(OUT, 'mushaf-pages-v1'), (f) => /\.json$/.test(f));
+if (mushafV1Pages !== 604) {
+  throw new Error(`[build-data] QCF V1 неполный набор страниц: ${mushafV1Pages}`);
+}
+
+// ---- 8. Аят → страница для перехода «2:255» в мусхафе: ayahPage[издание][сура-1][аят-1] ----
+const ayahPage = {};
+for (const [edition, dir] of [['v4', 'mushaf-pages'], ['v1', 'mushaf-pages-v1']]) {
+  const bySurah = Array.from({ length: 114 }, () => []);
+  for (let p = 1; p <= 604; p++) {
+    const page = JSON.parse(readFileSync(join(DATA, dir, `${p}.json`), 'utf8'));
+    for (const line of page.lines)
+      for (const w of line.w) {
+        const [s, a] = w.k.split(':').map(Number);
+        bySurah[s - 1][a - 1] ??= p;
+      }
+  }
+  if (bySurah.reduce((n, s) => n + s.filter(Boolean).length, 0) !== totalAyahs) {
+    throw new Error(`[build-data] ${edition}: не у всех аятов найдена страница`);
+  }
+  ayahPage[edition] = bySurah;
+}
+writeFileSync(join(OUT, 'mushaf-ayahs.json'), JSON.stringify(ayahPage));
+
 console.log(
-  `[build-data] сур: ${surahs.length}, аятов: ${totalAyahs}, чтецов: ${reciters.length}, файлов тафсира: ${tafsirFiles}, QCF4: ${qcfPages} стр./${qcfFonts} шр., Tajweed QCF: ${mushafPages} JSON -> public/data/`
+  `[build-data] сур: ${surahs.length}, аятов: ${totalAyahs}, чтецов: ${reciters.length}, файлов тафсира: ${tafsirFiles}, QCF4: ${qcfPages} стр./${qcfFonts} шр., Tajweed QCF: ${mushafPages} JSON, V1: ${mushafV1Pages} JSON -> public/data/`
 );

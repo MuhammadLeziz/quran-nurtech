@@ -6,6 +6,7 @@ import { initHomeFilter } from './home-filter';
 import { initHotkeys } from './hotkeys';
 import { initHapticInteractions } from './interactions';
 import { initMemorize } from './memorize';
+import { initMushafLinks } from './mushaf-store';
 import { initQuick } from './quick-nav';
 import { DV, loadIndex } from './quran-data';
 import { initReadingAnalytics } from './reading-analytics';
@@ -40,6 +41,7 @@ function boot() {
   initQuick({ loadIndex });
   initBookmarks();
   initContinue();
+  initMushafLinks();
   initAyahActions({ player });
   initAyahContextMenu({ player });
   initMushafAyahSheet({ player });

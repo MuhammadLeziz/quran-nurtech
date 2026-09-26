@@ -24,8 +24,61 @@ const description =
     <div class="bmp-body" data-body>
       <p class="bmp-empty" data-loading>Загрузка…</p>
     </div>
+
+    <section class="bmp-col" data-mushaf-bmp hidden>
+      <div class="bmp-col-h"><h2>Страницы мусхафа</h2><span class="cnt" data-mushaf-bmp-count></span></div>
+      <div class="bmp-items" data-mushaf-bmp-list></div>
+    </section>
   </PageShell>
 </Base>
+
+<script>
+  import { loadMeta } from '../client/mushaf-data';
+  import { getPageBookmarks, removePageBookmark } from '../client/mushaf-store';
+
+  // закладки страниц из режима мусхафа (кнопка-закладка в его тулбаре)
+  const box = document.querySelector<HTMLElement>('[data-mushaf-bmp]');
+  const list = document.querySelector<HTMLElement>('[data-mushaf-bmp-list]');
+  const count = document.querySelector('[data-mushaf-bmp-count]');
+  const fmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' });
+
+  async function renderMushafBookmarks() {
+    const marks = getPageBookmarks();
+    if (!box || !list) return;
+    box.hidden = !marks.length;
+    if (count) count.textContent = String(marks.length);
+    let surahs: { n: number; nr: string; p: number }[] = [];
+    try {
+      surahs = (await loadMeta()).suraPages;
+    } catch {}
+    list.replaceChildren(
+      ...marks.map((b) => {
+        const s = surahs.filter((x) => x.p <= b.p).pop();
+        const row = document.createElement('div');
+        row.className = 'bmp-item ui-card';
+        const ref = document.createElement('a');
+        ref.className = 'ref';
+        ref.href = `/mushaf/${b.p}`;
+        ref.textContent = `стр. ${b.p}`;
+        const nm = document.createElement('span');
+        nm.className = 'nm';
+        nm.textContent = `${s ? s.nr + ' · ' : ''}${fmt.format(b.t)}`;
+        const rm = document.createElement('button');
+        rm.className = 'rm ui-icon-button';
+        rm.textContent = '✕';
+        rm.title = 'Убрать закладку';
+        rm.setAttribute('aria-label', `Убрать закладку со страницы ${b.p}`);
+        rm.addEventListener('click', () => {
+          removePageBookmark(b.p);
+          renderMushafBookmarks();
+        });
+        row.append(ref, nm, rm);
+        return row;
+      })
+    );
+  }
+  renderMushafBookmarks();
+</script>
 
 <script is:inline>
   (function () {

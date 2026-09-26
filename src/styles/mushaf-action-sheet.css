@@ -1,36 +1,39 @@
-/* Мусхаф: нижний лист аята (тап по аяту) */
+/* Мусхаф: шторка аята (тап по аяту) — перевод, тафсир и действия, не уходя со страницы */
 .mas {
   position: fixed;
   inset: 0;
   z-index: 210;
   display: none;
 }
+
 .mas.open {
   display: block;
 }
+
 .mas-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(6, 10, 14, 0.28);
-  -webkit-backdrop-filter: blur(2px);
-  backdrop-filter: blur(2px);
+  background: rgba(6, 10, 14, 0.16);
 }
+
 .mas-card {
   position: absolute;
   left: 50%;
-  bottom: env(safe-area-inset-bottom);
+  bottom: 0;
   transform: translateX(-50%);
   width: min(560px, 100%);
-  max-height: 74vh;
+  max-height: min(62vh, 560px);
   overflow-y: auto;
-  background: var(--panel-bg);
+  overscroll-behavior: contain;
+  padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
   border: 1px solid var(--hairline);
   border-bottom: 0;
   border-radius: 20px 20px 0 0;
+  background: var(--panel-bg);
   box-shadow: var(--shadow-pop);
-  padding: 16px 18px 18px;
   animation: masIn 0.22s cubic-bezier(0.2, 0, 0, 1);
 }
+
 @keyframes masIn {
   from {
     transform: translate(-50%, 14px);
@@ -41,80 +44,152 @@
     opacity: 1;
   }
 }
+
 .mas-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px 34px;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 6px;
   margin-bottom: 10px;
 }
+
 .mas-head b {
-  font: var(--weight-semibold) var(--fs-15) / 1.2 var(--sans);
+  overflow: hidden;
   color: var(--ink);
+  font: var(--weight-semibold) var(--fs-15) / 1.2 var(--sans);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.mas-x {
-  width: 32px;
-  height: 32px;
+
+.mas-x,
+.mas-nav {
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
   border: 0;
-  background: var(--seg-track);
   border-radius: 999px;
+  background: var(--seg-track);
   color: var(--ink-soft);
   cursor: pointer;
 }
-.mas-x svg {
+
+.mas-nav:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.mas-x svg,
+.mas-nav svg {
   width: 16px;
   height: 16px;
 }
+
+.mas-tr-switch {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
 .mas-tr {
-  font: 400 var(--fs-16) / 1.6 var(--sans);
+  max-height: 24vh;
+  margin-bottom: 12px;
+  overflow-y: auto;
   color: var(--ink);
-  margin-bottom: 12px;
+  font: 400 var(--fs-16) / 1.55 var(--sans);
 }
+
 .mas-tafsir {
-  font: 400 var(--fs-14) / 1.6 var(--sans);
-  color: var(--ink-soft);
+  max-height: 34vh;
   margin-bottom: 12px;
+  overflow-y: auto;
+  color: var(--ink-soft);
+  font: 400 var(--fs-14) / 1.6 var(--sans);
 }
+
+/* действия — одна прокручиваемая строка: шторка ниже и не закрывает выделенный аят */
 .mas-acts {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  grid-auto-columns: minmax(74px, 1fr);
+  grid-auto-flow: column;
+  gap: 6px;
+  margin-inline: -16px;
+  padding-inline: 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+
+.mas-acts::-webkit-scrollbar {
+  display: none;
+}
+
 .mas-act {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 5px;
-  padding: 10px 6px;
+  min-width: 0;
+  padding: 10px 4px;
   border: 1px solid var(--hairline);
-  background: var(--panel-bg);
   border-radius: 12px;
+  background: var(--panel-bg);
   color: var(--ink);
   font: var(--weight-semibold) var(--fs-12) / 1.1 var(--sans);
   cursor: pointer;
 }
-.mas-act:hover {
-  background: var(--accent);
-  color: var(--accent-ink);
-  border-color: var(--accent);
+
+.mas-act > span:last-child {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.mas-act:hover .mas-ic {
-  color: var(--accent-ink);
+
+@media (hover: hover) {
+  .mas-act:hover {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .mas-act:hover .mas-ic {
+    color: var(--accent-ink);
+  }
 }
+
 .mas-ic {
   width: 20px;
   height: 20px;
   display: inline-flex;
   color: var(--ink-faint);
 }
+
 .mas-ic svg {
   width: 100%;
   height: 100%;
 }
-/* подсветка выбранного аята в мусхафе */
-.qcf-word.qcf-ayah-active {
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
-  border-radius: 4px;
+
+/* на широком экране шторка не закрывает страницу — сбоку снизу */
+@media (min-width: 1120px) {
+  .mas-backdrop {
+    background: transparent;
+  }
+
+  .mas-card {
+    left: auto;
+    right: 24px;
+    bottom: 24px;
+    width: 420px;
+    border-bottom: 1px solid var(--hairline);
+    border-radius: 18px;
+    transform: none;
+    animation-name: masInSide;
+  }
+
+  @keyframes masInSide {
+    from {
+      transform: translateY(12px);
+      opacity: 0;
+    }
+  }
 }

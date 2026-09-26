@@ -2,14 +2,14 @@
 import Base from '../../layouts/Base.astro';
 import { icons } from '../../lib/icons';
 import {
-  BASMALA,
   getMushafMeta,
   getMushafPage,
-  getMushafSurah,
-  mushafTajweedFontFamily,
-  mushafTajweedFontCss,
   MUSHAF_TOTAL_PAGES,
+  pageFontCss,
+  renderSheetHtml,
 } from '../../lib/mushaf';
+import { TAJWEED_LEGEND } from '../../lib/mushaf-tajweed';
+import { KHATM_DUA } from '../../lib/mushaf-khatm';
 
 export function getStaticPaths() {
   return Array.from({ length: MUSHAF_TOTAL_PAGES }, (_, i) => ({
@@ -23,167 +23,189 @@ const meta = getMushafMeta();
 const prevPage = pageNum > 1 ? pageNum - 1 : null;
 const nextPage = pageNum < MUSHAF_TOTAL_PAGES ? pageNum + 1 : null;
 const title = `Мусхаф, страница ${pageNum} — Коран онлайн`;
-const description = `Оригинальная страничная раскладка мусхафа с цветным таджвидом, страница ${pageNum} из ${MUSHAF_TOTAL_PAGES}: QCF V4-глифы, 15 строк и пословная разметка.`;
-const linesByNumber = new Map(page.lines.map((line) => [line.n, line]));
-const slots = Array.from({ length: 15 }, (_, i) => i + 1);
-const starts = page.starts || [];
-const startByLine = new Map(starts.map((start) => [start.line, start]));
-const decorationByLine = new Map<number, { type: 'surah' | 'basmala'; surah: number }>();
-for (const start of starts) {
-  if (start.s === 1) {
-    decorationByLine.set(Math.max(1, start.line - 1), { type: 'surah', surah: start.s });
-  } else if (start.s === 9) {
-    decorationByLine.set(Math.max(1, start.line - 1), { type: 'surah', surah: start.s });
-  } else {
-    decorationByLine.set(Math.max(1, start.line - 2), { type: 'surah', surah: start.s });
-    decorationByLine.set(Math.max(1, start.line - 1), { type: 'basmala', surah: start.s });
-  }
-}
-const lineNumbers = page.lines.map((line) => line.n).sort((a, b) => a - b);
-const centeredLines = new Set(
-  lineNumbers.filter((lineNumber, i) => {
-    const next = lineNumbers[i + 1];
-    return !next || next > lineNumber + 1 || startByLine.has(next);
-  })
-);
-const surahLabel = starts.length
-  ? starts.map((s) => getMushafSurah(meta, s.s)?.na || `Сура ${s.s}`).join(' · ')
-  : Array.from(new Set(page.lines.flatMap((line) => line.w.map((word) => Number(word.k.split(':')[0])))))
-      .map((s) => getMushafSurah(meta, s)?.na || `Сура ${s}`)
-      .join(' · ');
-const fontCss = mushafTajweedFontCss(pageNum);
-const fontFamily = mushafTajweedFontFamily(pageNum);
+const description = `Оригинальная страничная раскладка мусхафа с цветным таджвидом, страница ${pageNum} из ${MUSHAF_TOTAL_PAGES}: QCF-глифы, 15 строк и пословная разметка.`;
+const sheetHtml = renderSheetHtml(page, { edition: 'v4', surahs: meta.suraPages });
+const fontCss = pageFontCss('v4', pageNum);
 
-// навигация по сурам/джузам: текущие сура и джуз для предвыбора + список джузов→страниц
-const currentSurah = starts[0]?.s ?? Number(page.lines[0]?.w[0]?.k.split(':')[0]) ?? 1;
+// предвыбор в «Сура…» / «Джуз…»: сура, начинающаяся на странице, иначе первая сура страницы
+const currentSurah = page.starts?.[0]?.s ?? Number(page.lines[0]?.w[0]?.k.split(':')[0]) ?? 1;
 const currentJuz = meta.pageJuz[String(pageNum)] ?? null;
-const juzList = Array.from({ length: 30 }, (_, i) => i + 1).map((n) => ({
-  n,
-  p: meta.juzStart[String(n)] ?? 1,
-}));
+const juzList = Array.from({ length: 30 }, (_, i) => i + 1).map((n) => ({ n, p: meta.juzStart[String(n)] ?? 1 }));
+const surahOptions = meta.suraPages.map((s) => ({ value: s.p, label: `${s.n}. ${s.nr}`, selected: s.n === currentSurah }));
+const juzOptions = juzList.map((j) => ({ value: j.p, label: `Джуз ${j.n}`, selected: j.n === currentJuz }));
+const icon = {
+  list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>',
+  text: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19l5-13 5 13M4.8 14.5h6.4"/><path d="M15 12.5c.6-1 1.6-1.5 2.8-1.5 1.8 0 3.2 1 3.2 3v5M21 16.2c-.9-.4-1.8-.5-2.8-.4-1.6.2-2.7 1-2.7 2.1 0 1 .8 1.6 2 1.6 1.7 0 3.1-1 3.5-2.4"/></svg>',
+  expand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>',
+};
 ---
 
 <Base {title} {description} wide pageMode="mushaf">
   <style is:inline set:html={fontCss}></style>
+  <noscript><style>.mushaf-sheet[data-state='loading'] .qcf-word{visibility:visible}.mushaf-sheet[data-state='loading'] .qcf-line::before{display:none}</style></noscript>
+  <!-- издание, таджвид и режим чтения — до первой отрисовки, чтобы страница не мигала -->
+  <script is:inline>
+    (function () {
+      var r = document.documentElement;
+      try {
+        if (localStorage.getItem('q_mushaf_edition') === '"v1"') r.setAttribute('data-mushaf-edition', 'v1');
+        if (localStorage.getItem('q_mushaf_tajweed') === 'false') r.setAttribute('data-mushaf-tajweed', 'off');
+        if (sessionStorage.getItem('q_mushaf_reader') === '1') r.setAttribute('data-mushaf-immersive', '');
+      } catch (e) {}
+    })();
+  </script>
 
-  <div class="mushaf-reader">
-    <nav class="mushaf-toolbar container" aria-label="Навигация по мусхафу">
-      <a class={`icon-btn ${prevPage ? '' : 'disabled'}`} href={prevPage ? `/mushaf/${prevPage}` : undefined} aria-label="Предыдущая страница" title="Предыдущая страница" set:html={icons.arrowLeft} />
-
-      <select class="mushaf-nav-sel" data-mushaf-goto aria-label="Перейти к суре">
-        <option value="">Сура…</option>
-        {
-          meta.suraPages.map((s) => (
-            <option value={s.p} selected={s.n === currentSurah ? true : undefined}>
-              {s.n}. {s.nr}
-            </option>
-          ))
-        }
-      </select>
-
-      <select class="mushaf-nav-sel" data-mushaf-goto aria-label="Перейти к джузу">
-        <option value="">Джуз…</option>
-        {
-          juzList.map((j) => (
-            <option value={j.p} selected={j.n === currentJuz ? true : undefined}>
-              Джуз {j.n}
-            </option>
-          ))
-        }
-      </select>
-
-      <form class="mushaf-jump" action="/mushaf/1" data-mushaf-jump>
-        <input id="mushaf-page" name="page" type="number" inputmode="numeric" min="1" max={MUSHAF_TOTAL_PAGES} value={pageNum} aria-label="Номер страницы" />
-        <span>/ {MUSHAF_TOTAL_PAGES}</span>
-      </form>
-
-      <a class={`icon-btn ${nextPage ? '' : 'disabled'}`} href={nextPage ? `/mushaf/${nextPage}` : undefined} aria-label="Следующая страница" title="Следующая страница" set:html={icons.arrowRight} />
-
-      <div class="mushaf-zoom" aria-label="Масштаб страницы">
-        <button type="button" class="icon-btn mushaf-zoom-btn" data-mushaf-zoom-step="-10" aria-label="Уменьшить масштаб" title="Уменьшить" set:html={icons.minus}></button>
-        <input type="range" min="100" max="300" step="5" value="100" data-mushaf-zoom-range aria-label="Масштаб страницы" />
-        <button type="button" class="icon-btn mushaf-zoom-btn" data-mushaf-zoom-step="10" aria-label="Увеличить масштаб" title="Увеличить" set:html={icons.plus}></button>
-        <button type="button" class="mushaf-fit-btn" data-mushaf-fit aria-label="Подогнать страницу по экрану" title="Подогнать по экрану">100%</button>
+  <div class="mushaf-reader" data-mushaf-reader data-page={pageNum}>
+    <nav class="mushaf-toolbar" aria-label="Навигация по мусхафу">
+      <div class="mushaf-tb-group mushaf-tb-pages">
+        <a class={`icon-btn ${nextPage ? '' : 'disabled'}`} href={nextPage ? `/mushaf/${nextPage}` : undefined} data-mushaf-step="1" aria-label="Следующая страница" title="Следующая страница (←)" set:html={icons.arrowLeft} />
+        <form class="mushaf-jump" action="/mushaf/1" data-mushaf-jump>
+          <input name="q" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="go" value={pageNum} aria-label="Страница или аят (например 2:255)" title="Номер страницы или аят, например 2:255" data-mushaf-page-input />
+          <span class="mushaf-jump-total">/ {MUSHAF_TOTAL_PAGES}</span>
+        </form>
+        <a class={`icon-btn ${prevPage ? '' : 'disabled'}`} href={prevPage ? `/mushaf/${prevPage}` : undefined} data-mushaf-step="-1" aria-label="Предыдущая страница" title="Предыдущая страница (→)" set:html={icons.arrowRight} />
       </div>
 
-      <button type="button" class="icon-btn" data-mushaf-immersive aria-label="Режим чтения на весь экран" title="Во весь экран (режим чтения)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
-      </button>
+      <div class="mushaf-tb-group mushaf-tb-nav">
+        <select class="mushaf-nav-sel" data-mushaf-goto="surah" aria-label="Перейти к суре">
+          {surahOptions.map((o) => <option value={o.value} selected={o.selected || undefined}>{o.label}</option>)}
+        </select>
+        <select class="mushaf-nav-sel" data-mushaf-goto="juz" aria-label="Перейти к джузу">
+          {juzOptions.map((o) => <option value={o.value} selected={o.selected || undefined}>{o.label}</option>)}
+        </select>
+      </div>
+
+      <div class="mushaf-tb-group mushaf-tb-zoom" aria-label="Размер текста">
+        <button type="button" class="icon-btn" data-mushaf-zoom-step="-10" aria-label="Уменьшить текст" title="Уменьшить (−)" set:html={icons.minus}></button>
+        <button type="button" class="mushaf-zoom-value" data-mushaf-zoom-reset aria-label="Вернуть размер по странице" title="По странице (0)">100%</button>
+        <button type="button" class="icon-btn" data-mushaf-zoom-step="10" aria-label="Увеличить текст" title="Увеличить (+)" set:html={icons.plus}></button>
+      </div>
+
+      <div class="mushaf-tb-group mushaf-tb-tools">
+        <button type="button" class="icon-btn mushaf-tb-bookmark" data-mushaf-bookmark aria-pressed="false" aria-label="Закладка на странице" title="Закладка на странице (B)" set:html={icons.bookmark}></button>
+        <button type="button" class="icon-btn" data-mushaf-open="nav" aria-haspopup="dialog" aria-label="Перейти и закладки" title="Перейти и закладки" set:html={icon.list}></button>
+        <button type="button" class="icon-btn" data-mushaf-open="view" aria-haspopup="dialog" aria-label="Вид мусхафа" title="Вид: издание, таджвид, размер, офлайн" set:html={icon.text}></button>
+        <button type="button" class="icon-btn" data-mushaf-immersive aria-label="Во весь экран" title="Во весь экран (F)" set:html={icon.expand}></button>
+      </div>
     </nav>
 
-    <div class="mushaf-zoom-fab" aria-label="Масштаб страницы">
-      <button type="button" class="icon-btn" data-mushaf-zoom-step="10" aria-label="Увеличить масштаб" title="Увеличить" set:html={icons.plus}></button>
-      <button type="button" class="mushaf-fab-reset" data-mushaf-fit aria-label="Сбросить масштаб" title="Сбросить масштаб">100%</button>
-      <button type="button" class="icon-btn" data-mushaf-zoom-step="-10" aria-label="Уменьшить масштаб" title="Уменьшить" set:html={icons.minus}></button>
+    <div class="mushaf-viewport" data-mushaf-viewport>
+      <div class="mushaf-track" data-mushaf-track>
+        <div class="mushaf-slide" data-slot="prev" aria-hidden="true"></div>
+        <div class="mushaf-slide is-current" data-slot="cur" set:html={sheetHtml}></div>
+        <div class="mushaf-slide" data-slot="next" aria-hidden="true"></div>
+      </div>
     </div>
 
-    <button type="button" class="mushaf-immersive-exit" data-mushaf-immersive aria-label="Выйти из режима чтения" title="Выйти (Esc)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-    </button>
-    {prevPage && (
-      <a class="mushaf-imm-nav mushaf-imm-prev" href={`/mushaf/${prevPage}`} aria-label="Предыдущая страница" title="Предыдущая страница" set:html={icons.arrowLeft} />
-    )}
-    {nextPage && (
-      <a class="mushaf-imm-nav mushaf-imm-next" href={`/mushaf/${nextPage}`} aria-label="Следующая страница" title="Следующая страница" set:html={icons.arrowRight} />
-    )}
+    <button type="button" class="mushaf-immersive-exit" data-mushaf-immersive aria-label="Выйти из полноэкранного режима" title="Выйти (Esc)" set:html={icons.close}></button>
+  </div>
 
-    <section class="mushaf-sheet" aria-label={`Страница ${pageNum} мусхафа`}>
-      <div class="mushaf-meta">
-        <span>{surahLabel}</span>
-        <b>{pageNum}</b>
+  <div class="mushaf-panel" data-mushaf-panel="nav" hidden>
+    <div class="mushaf-panel-backdrop" data-mushaf-close></div>
+    <section class="mushaf-panel-card" role="dialog" aria-modal="true" aria-labelledby="mushaf-nav-title">
+      <header class="mushaf-panel-head">
+        <h2 id="mushaf-nav-title">Перейти</h2>
+        <button type="button" class="icon-btn" data-mushaf-close aria-label="Закрыть" set:html={icons.close}></button>
+      </header>
+      <form class="mushaf-goto-form" data-mushaf-jump>
+        <input name="q" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="go" placeholder="Страница или аят: 255, 2:255" aria-label="Страница или аят" />
+        <button type="submit" class="btn primary">Перейти</button>
+      </form>
+      <div class="mushaf-panel-row mushaf-panel-selects">
+        <select class="mushaf-nav-sel" data-mushaf-goto="surah" aria-label="Перейти к суре">
+          {surahOptions.map((o) => <option value={o.value} selected={o.selected || undefined}>{o.label}</option>)}
+        </select>
+        <select class="mushaf-nav-sel" data-mushaf-goto="juz" aria-label="Перейти к джузу">
+          {juzOptions.map((o) => <option value={o.value} selected={o.selected || undefined}>{o.label}</option>)}
+        </select>
       </div>
-
-      <div class="qcf-page" dir="rtl" data-mushaf-page={pageNum}>
-        {
-          slots.map((lineNumber) => {
-            const line = linesByNumber.get(lineNumber);
-            const decoration = decorationByLine.get(lineNumber);
-            if (decoration?.type === 'surah') {
-              const surah = getMushafSurah(meta, decoration.surah);
-              return (
-                <div class="qcf-line qcf-line-deco qcf-surah-line" data-line={lineNumber}>
-                  <span class="qcf-surah-title">{surah?.na || `سورة ${decoration.surah}`}</span>
-                </div>
-              );
-            }
-            if (decoration?.type === 'basmala') {
-              return (
-                <div class="qcf-line qcf-line-deco qcf-basmala-line" data-line={lineNumber}>
-                  <span class="qcf-basmala">{BASMALA}</span>
-                </div>
-              );
-            }
-            return (
-              <div class={`qcf-line ${line ? '' : 'is-empty'} ${centeredLines.has(lineNumber) ? 'center' : ''}`} data-line={lineNumber}>
-                {line?.w.map((word) => (
-                  <span
-                    class={`qcf-word ${word.e ? 'qcf-word-end' : ''}`}
-                    style={`font-family:'${fontFamily}'`}
-                    data-ayah-key={word.k}
-                    title={word.k}
-                  >
-                    {word.c}
-                  </span>
-                ))}
-              </div>
-            );
-          })
-        }
+      <div class="mushaf-panel-sec">
+        <div class="mushaf-panel-sec-h">
+          <h3>Закладки страниц</h3>
+          <button type="button" class="btn" data-mushaf-bookmark aria-pressed="false">
+            <span class="ui-inline-icon" set:html={icons.bookmark}></span><span data-mushaf-bookmark-label>Добавить эту страницу</span>
+          </button>
+        </div>
+        <ul class="mushaf-bm-list" data-mushaf-bm-list></ul>
+        <p class="mushaf-panel-note" data-mushaf-bm-empty>Здесь появятся страницы, отмеченные закладкой. Закладки аятов — на странице <a class="link" href="/bookmarks">Закладки</a>.</p>
       </div>
     </section>
-
-    <nav class="mushaf-bottom container" aria-label="Навигация по страницам">
-      <a class={`btn ${prevPage ? '' : 'disabled'}`} href={prevPage ? `/mushaf/${prevPage}` : undefined}>
-        <span class="ui-inline-icon" set:html={icons.arrowLeft} /> Назад
-      </a>
-      <a class="btn" href="/surah/1">
-        <span class="ui-inline-icon" set:html={icons.book} /> Суры
-      </a>
-      <a class={`btn primary ${nextPage ? '' : 'disabled'}`} href={nextPage ? `/mushaf/${nextPage}` : undefined}>
-        Вперёд <span class="ui-inline-icon" set:html={icons.arrowRight} />
-      </a>
-    </nav>
   </div>
+
+  <div class="mushaf-panel" data-mushaf-panel="view" hidden>
+    <div class="mushaf-panel-backdrop" data-mushaf-close></div>
+    <section class="mushaf-panel-card" role="dialog" aria-modal="true" aria-labelledby="mushaf-view-title">
+      <header class="mushaf-panel-head">
+        <h2 id="mushaf-view-title">Вид мусхафа</h2>
+        <button type="button" class="icon-btn" data-mushaf-close aria-label="Закрыть" set:html={icons.close}></button>
+      </header>
+
+      <div class="mushaf-panel-sec">
+        <h3>Издание</h3>
+        <div class="seg seg-grid2" role="radiogroup" aria-label="Издание мусхафа">
+          <button type="button" role="radio" data-mushaf-edition="v4">Мединский 1441</button>
+          <button type="button" role="radio" data-mushaf-edition="v1">Мединский 1405</button>
+        </div>
+        <p class="mushaf-panel-note" data-mushaf-edition-note></p>
+      </div>
+
+      <div class="mushaf-panel-sec">
+        <button type="button" class="mushaf-switch-row" data-mushaf-tajweed role="switch" aria-checked="true">
+          <span><b>Цветной таджвид</b><small data-mushaf-tajweed-note>Цвет подсказывает правило чтения</small></span>
+          <span class="switch" aria-hidden="true"></span>
+        </button>
+        <details class="mushaf-legend" data-mushaf-legend>
+          <summary>Что означают цвета</summary>
+          <ul>
+            {TAJWEED_LEGEND.map((rule) => (
+              <li>
+                <i class={`tj-dot mtj-${rule.id}`} aria-hidden="true"></i>
+                <span><b>{rule.title}</b><small>{rule.note}</small><span class="tj-ex" dir="rtl" lang="ar">{rule.ex.join('  ·  ')}</span></span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      </div>
+
+      <div class="mushaf-panel-sec">
+        <h3>Размер текста</h3>
+        <div class="mushaf-zoom-row" aria-label="Размер текста">
+          <button type="button" class="icon-btn" data-mushaf-zoom-step="-10" aria-label="Уменьшить текст" set:html={icons.minus}></button>
+          <button type="button" class="mushaf-zoom-value" data-mushaf-zoom-reset aria-label="Вернуть размер по странице">100%</button>
+          <button type="button" class="icon-btn" data-mushaf-zoom-step="10" aria-label="Увеличить текст" set:html={icons.plus}></button>
+        </div>
+        <p class="mushaf-panel-note">При увеличении строки переносятся по словам и страница прокручивается вниз. На телефоне можно разводить двумя пальцами.</p>
+      </div>
+
+      <div class="mushaf-panel-sec">
+        <h3>Без интернета</h3>
+        <p class="mushaf-panel-note" data-mushaf-offline-status>Страницы и шрифты выбранного издания сохранятся на устройстве.</p>
+        <div class="mushaf-offline-bar" data-mushaf-offline-bar hidden><i></i></div>
+        <div class="mushaf-panel-row">
+          <button type="button" class="btn primary" data-mushaf-offline="download">
+            <span class="ui-inline-icon" set:html={icons.download}></span><span data-mushaf-offline-label>Скачать мусхаф</span>
+          </button>
+          <button type="button" class="btn" data-mushaf-offline="cancel" hidden>Остановить</button>
+          <button type="button" class="btn" data-mushaf-offline="remove" hidden>Удалить</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <template data-mushaf-khatm-template>
+    <section class="mushaf-khatm" aria-labelledby="mushaf-khatm-title">
+      <p class="mushaf-khatm-kicker">Хатм Корана</p>
+      <h2 id="mushaf-khatm-title">Вы дочитали Коран до конца</h2>
+      <p class="mushaf-khatm-lead">Да примет Аллах ваше чтение. {KHATM_DUA.intro}</p>
+      <p class="mushaf-khatm-ar" dir="rtl" lang="ar">{KHATM_DUA.ar}</p>
+      <p class="mushaf-khatm-ru">{KHATM_DUA.ru}</p>
+      <p class="mushaf-khatm-note">{KHATM_DUA.note}</p>
+      <div class="mushaf-khatm-acts">
+        <a class="btn primary" href="/mushaf/1" data-mushaf-khatm-restart>Начать заново</a>
+        <button type="button" class="btn" data-mushaf-step="-1">К странице 604</button>
+      </div>
+    </section>
+  </template>
 
   <script>
     import '../../client/mushaf';

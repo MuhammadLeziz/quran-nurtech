@@ -1,93 +1,72 @@
-.mushaf-immersive-exit,
-.mushaf-imm-nav {
+/* ==========================================================================
+   Мусхаф во весь экран: только текст. Ни стрелок, ни рамок, ни панелей —
+   страница занимает весь экран; выход — Esc, кнопка «Назад» системы или крестик по тапу на поля.
+   ========================================================================== */
+.mushaf-immersive-exit {
   display: none;
 }
 
-body.mushaf-immersive {
+:root[data-mushaf-immersive] body[data-page-mode='mushaf'] {
   height: var(--mushaf-vvh);
+  padding: 0 !important;
   overflow: hidden;
+  background: var(--mushaf-paper);
 }
 
-body.mushaf-immersive .topbar,
-body.mushaf-immersive .footer,
-body.mushaf-immersive .player,
-body.mushaf-immersive .drawer,
-body.mushaf-immersive .drawer-backdrop,
-body.mushaf-immersive .mobile-tabbar,
-body.mushaf-immersive .mushaf-bottom,
-body.mushaf-immersive .mushaf-zoom-fab {
+:root[data-mushaf-immersive] body[data-page-mode='mushaf'] :is(.topbar, .footer, .drawer, .drawer-backdrop, .mobile-tabbar) {
   display: none !important;
 }
 
-body.mushaf-immersive main.wide {
-  height: var(--mushaf-vvh) !important;
+:root[data-mushaf-immersive] body[data-page-mode='mushaf'] main.wide {
+  margin: 0;
 }
 
-body.mushaf-immersive .mushaf-reader {
-  height: var(--mushaf-vvh);
-  padding: 18px;
+:root[data-mushaf-immersive] .mushaf-reader {
   grid-template-rows: minmax(0, 1fr);
-  background: radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--sys-fill-vibrant) 70%, transparent), transparent 42%),
-    var(--mushaf-stage);
+  gap: 0;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: var(--mushaf-paper);
 }
 
-body.mushaf-immersive .mushaf-toolbar {
+:root[data-mushaf-immersive] .mushaf-toolbar,
+:root[data-mushaf-immersive] .mushaf-meta,
+:root[data-mushaf-immersive] .mushaf-folio {
+  display: none;
+}
+
+:root[data-mushaf-immersive] .mushaf-sheet {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+:root[data-mushaf-immersive] .mushaf-immersive-exit {
   position: fixed;
-  top: max(14px, env(safe-area-inset-top));
-  left: 50%;
-  width: min(720px, calc(100vw - 120px));
-  transform: translateX(-50%);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.18s ease;
-}
-
-body.mushaf-immersive .mushaf-reader:hover .mushaf-toolbar,
-body.mushaf-immersive .mushaf-toolbar:focus-within {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-body.mushaf-immersive .mushaf-meta {
-  opacity: 0.3;
-}
-
-body.mushaf-immersive .mushaf-immersive-exit,
-body.mushaf-immersive .mushaf-imm-nav {
-  display: grid;
-  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
   z-index: 70;
+  display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border: 1px solid var(--sys-separator);
   border-radius: var(--radius-pill);
   background: var(--sys-material-strong);
   color: var(--sys-secondary-label);
   -webkit-backdrop-filter: var(--material-blur);
   backdrop-filter: var(--material-blur);
-  box-shadow: var(--shadow-card);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
 }
 
-body.mushaf-immersive .mushaf-immersive-exit {
-  top: max(14px, env(safe-area-inset-top));
-  right: max(14px, env(safe-area-inset-right));
+:root[data-mushaf-immersive] .mushaf-reader.show-chrome .mushaf-immersive-exit,
+:root[data-mushaf-immersive] .mushaf-immersive-exit:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
-body.mushaf-immersive .mushaf-imm-prev {
-  left: max(14px, env(safe-area-inset-left));
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-body.mushaf-immersive .mushaf-imm-next {
-  right: max(14px, env(safe-area-inset-right));
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.mushaf-immersive-exit svg,
-.mushaf-imm-nav svg {
+.mushaf-immersive-exit svg {
   width: 20px;
   height: 20px;
 }
